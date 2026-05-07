@@ -1,0 +1,191 @@
+//@version=5
+indicator("XAUUSD MTF Signal [SMC]", overlay=true, max_bars_back=500)
+
+// ════════════════════════════════════════
+// INPUTS
+// ════════════════════════════════════════
+i_swingLen   = input.int(5,     "Swing Length",         minval=3, group="Settings")
+i_zoneBuf    = input.float(1.0, "Zone Buffer (points)", minval=0.1, group="Settings")
+i_showD1     = input.bool(true, "D1 Levels",            group="Display")
+i_showH4     = input.bool(true, "H4 Structure",         group="Display")
+i_showH1     = input.bool(true, "H1 Zones",             group="Display")
+
+// ════════════════════════════════════════
+// MULTI-TIMEFRAME DATA
+// ════════════════════════════════════════
+d1_high  = request.security(syminfo.tickerid, "D",   high)
+d1_low   = request.security(syminfo.tickerid, "D",   low)
+d1_sh    = request.security(syminfo.tickerid, "D",   ta.pivothigh(high, i_swingLen, i_swingLen))
+d1_sl    = request.security(syminfo.tickerid, "D",   ta.pivotlow(low,  i_swingLen, i_swingLen))
+
+h4_high  = request.security(syminfo.tickerid, "240", high)
+h4_low   = request.security(syminfo.tickerid, "240", low)
+h4_sh    = request.security(syminfo.tickerid, "240", ta.pivothigh(high, i_swingLen, i_swingLen))
+h4_sl    = request.security(syminfo.tickerid, "240", ta.pivotlow(low,  i_swingLen, i_swingLen))
+
+h1_sh    = request.security(syminfo.tickerid, "60",  ta.pivothigh(high, i_swingLen, i_swingLen))
+h1_sl    = request.security(syminfo.tickerid, "60",  ta.pivotlow(low,  i_swingLen, i_swingLen))
+
+// ════════════════════════════════════════
+// D1 TREND — Dow Theory (HH/HL эсвэл LH/LL)
+// ════════════════════════════════════════
+var float d1_last_sh = na
+var float d1_prev_sh = na
+var float d1_last_sl = na
+var float d1_prev_sl = na
+
+if not na(d1_sh)
+    d1_prev_sh := d1_last_sh
+    d1_last_sh := d1_sh
+
+if not na(d1_sl)
+    d1_prev_sl := d1_last_sl
+    d1_last_sl := d1_sl
+
+d1_bull = not na(d1_last_sh) and not na(d1_prev_sh) and
+          not na(d1_last_sl) and not na(d1_prev_sl) and
+          d1_last_sh > d1_prev_sh and d1_last_sl > d1_prev_sl
+
+d1_bear = not na(d1_last_sh) and not na(d1_prev_sh) and
+          not na(d1_last_sl) and not na(d1_prev_sl) and
+          d1_last_sh < d1_prev_sh and d1_last_sl < d1_prev_sl
+
+// ════════════════════════════════════════
+// H4 DOW STRUCTURE
+// ════════════════════════════════════════
+var float h4_last_sh = na
+var float h4_prev_sh = na
+var float h4_last_sl = na
+var float h4_prev_sl = na
+
+if not na(h4_sh)
+    h4_prev_sh := h4_last_sh
+    h4_last_sh := h4_sh
+
+if not na(h4_sl)
+    h4_prev_sl := h4_last_sl
+    h4_last_sl := h4_sl
+
+// ════════════════════════════════════════
+// H4 INDUCEMENT — хамгийн сүүлийн swing high/low давах
+// ════════════════════════════════════════
+var bool ind_bull = false
+var bool ind_bear = false
+
+bullInd_trigger = d1_bull and not na(h4_last_sl) and
+                  low < h4_last_sl and close > h4_last_sl
+
+bearInd_trigger = d1_bear and not na(h4_last_sh) and
+                  high > h4_last_sh and close < h4_last_sh
+
+if bullInd_trigger
+    ind_bull := true
+    ind_bear := false
+
+if bearInd_trigger
+    ind_bear := true
+    ind_bull := false
+
+if not na(h4_sh) or not na(h4_sl)
+    ind_bull := false
+    ind_bear := false
+
+// ════════════════════════════════════════
+// H1 ZONE
+// ════════════════════════════════════════
+var float h1_last_sh = na
+var float h1_last_sl = na
+
+if not na(h1_sh)
+    h1_last_sh := h1_sh
+
+if not na(h1_sl)
+    h1_last_sl := h1_sl
+
+inBullZone = not na(h1_last_sl) and
+             low  <= h1_last_sl + i_zoneBuf and
+             close >= h1_last_sl - i_zoneBuf
+
+inBearZone = not na(h1_last_sh) and
+             high >= h1_last_sh - i_zoneBuf and
+             close <= h1_last_sh + i_zoneBuf
+
+// ════════════════════════════════════════
+// M5 CANDLE PATTERNS
+// ════════════════════════════════════════
+candleSize = high - low + 0.0001
+
+bullEngulf = close > open and close[1] < open[1] and
+             close > open[1] and open <= close[1]
+
+bearEngulf = close < open and close[1] > open[1] and
+             close < open[1] and open >= close[1]
+
+bullPin = close > open and
+          (open - low) / candleSize > 0.55 and
+          (high - close) / candleSize < 0.25
+
+bearPin = close < open and
+          (high - open) / candleSize > 0.55 and
+          (close - low) / candleSize < 0.25
+
+bullCandle = bullEngulf or bullPin
+bearCandle = bearEngulf or bearPin
+
+// ════════════════════════════════════════
+// FINAL SIGNALS
+// ════════════════════════════════════════
+buyConf  = ind_bull and inBullZone and bullCandle
+buyRisk  = ind_bull and inBullZone and not bullCandle
+
+sellConf = ind_bear and inBearZone and bearCandle
+sellRisk = ind_bear and inBearZone and not bearCandle
+
+// ════════════════════════════════════════
+// VISUALS
+// ════════════════════════════════════════
+plotshape(buyConf,  "BUY Confirm",  shape.labelup,    location.belowbar,
+          color.new(color.green, 0), text="BUY ✓", textcolor=color.white, size=size.normal)
+plotshape(buyRisk,  "BUY Risk",     shape.triangleup,  location.belowbar,
+          color.new(color.lime, 20), size=size.small)
+
+plotshape(sellConf, "SELL Confirm", shape.labeldown,  location.abovebar,
+          color.new(color.red, 0), text="SELL ✓", textcolor=color.white, size=size.normal)
+plotshape(sellRisk, "SELL Risk",    shape.triangledown, location.abovebar,
+          color.new(color.orange, 20), size=size.small)
+
+trendColor = d1_bull ? color.green : d1_bear ? color.red : color.gray
+trendText  = d1_bull ? "D1: BULL" : d1_bear ? "D1: BEAR" : "D1: NEUTRAL"
+var label trendLabel = na
+label.delete(trendLabel)
+trendLabel := label.new(bar_index, high * 1.001, trendText,
+              color=trendColor, textcolor=color.white, size=size.small)
+
+plot(i_showD1 ? d1_last_sh : na, "D1 Resistance", color.new(color.blue, 60), 2)
+plot(i_showD1 ? d1_last_sl : na, "D1 Support",    color.new(color.blue, 60), 2)
+plot(i_showH4 ? h4_last_sh : na, "H4 High",       color.new(color.orange, 50), 1)
+plot(i_showH4 ? h4_last_sl : na, "H4 Low",        color.new(color.orange, 50), 1)
+plot(i_showH1 ? h1_last_sh : na, "H1 Zone High",  color.new(color.yellow, 55), 1)
+plot(i_showH1 ? h1_last_sl : na, "H1 Zone Low",   color.new(color.yellow, 55), 1)
+
+bgcolor(ind_bull ? color.new(color.green, 93) : na, title="Bull Inducement Active")
+bgcolor(ind_bear ? color.new(color.red,   93) : na, title="Bear Inducement Active")
+
+// ════════════════════════════════════════
+// ALERTS
+// ════════════════════════════════════════
+alertcondition(buyConf,
+  "BUY — Confirmation",
+  '{"signal":"BUY","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","inducement":"done","entry":"confirmation_candle","time":"{{time}}","price":"{{close}}"}')
+
+alertcondition(buyRisk,
+  "BUY — Risk Entry",
+  '{"signal":"BUY","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","inducement":"done","entry":"risk_entry","time":"{{time}}","price":"{{close}}"}')
+
+alertcondition(sellConf,
+  "SELL — Confirmation",
+  '{"signal":"SELL","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","inducement":"done","entry":"confirmation_candle","time":"{{time}}","price":"{{close}}"}')
+
+alertcondition(sellRisk,
+  "SELL — Risk Entry",
+  '{"signal":"SELL","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","inducement":"done","entry":"risk_entry","time":"{{time}}","price":"{{close}}"}')
