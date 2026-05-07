@@ -133,6 +133,26 @@ bullCandle = bullEngulf or bullPin
 bearCandle = bearEngulf or bearPin
 
 // ════════════════════════════════════════
+// ATR-Д СУУРИЛСАН SL/TP
+// ════════════════════════════════════════
+atrLen    = input.int(14, "ATR Length", group="Settings")
+slMult    = input.float(1.5, "SL Multiplier (ATR)", group="Settings")
+tpMult    = input.float(3.0, "TP Multiplier (ATR)", group="Settings")
+
+atr = ta.atr(atrLen)
+
+// BUY: SL нь entry-с доош, TP нь дээш
+buySL = close - atr * slMult
+buyTP = close + atr * tpMult
+
+// SELL: SL нь entry-с дээш, TP нь доош
+sellSL = close + atr * slMult
+sellTP = close - atr * tpMult
+
+// RR харьцаа
+rrRatio = tpMult / slMult
+
+// ════════════════════════════════════════
 // FINAL SIGNALS
 // ════════════════════════════════════════
 buyConf  = ind_bull and inBullZone and bullCandle
@@ -161,31 +181,47 @@ label.delete(trendLabel)
 trendLabel := label.new(bar_index, high * 1.001, trendText,
               color=trendColor, textcolor=color.white, size=size.small)
 
-plot(i_showD1 ? d1_last_sh : na, "D1 Resistance", color.new(color.blue, 60), 2)
-plot(i_showD1 ? d1_last_sl : na, "D1 Support",    color.new(color.blue, 60), 2)
-plot(i_showH4 ? h4_last_sh : na, "H4 High",       color.new(color.orange, 50), 1)
-plot(i_showH4 ? h4_last_sl : na, "H4 Low",        color.new(color.orange, 50), 1)
-plot(i_showH1 ? h1_last_sh : na, "H1 Zone High",  color.new(color.yellow, 55), 1)
-plot(i_showH1 ? h1_last_sl : na, "H1 Zone Low",   color.new(color.yellow, 55), 1)
+// D1 том эсэргэцэл/дэмжлэгийн шугам (цэнхэр, зузаан)
+plot(i_showD1 ? d1_last_sh : na, "📘 D1 Resistance — Өдрийн том эсэргэцэл", color.new(color.blue, 40), 2)
+plot(i_showD1 ? d1_last_sl : na, "📘 D1 Support — Өдрийн том дэмжлэг",      color.new(color.blue, 40), 2)
 
-bgcolor(ind_bull ? color.new(color.green, 93) : na, title="Bull Inducement Active")
-bgcolor(ind_bear ? color.new(color.red,   93) : na, title="Bear Inducement Active")
+// H4 бүтцийн дээд/доод цэг (улбар шар)
+plot(i_showH4 ? h4_last_sh : na, "🟠 H4 Swing High — 4 цагийн дээд цэг", color.new(color.orange, 30), 1)
+plot(i_showH4 ? h4_last_sl : na, "🟠 H4 Swing Low — 4 цагийн доод цэг",  color.new(color.orange, 30), 1)
+
+// H1 entry zone (шар)
+plot(i_showH1 ? h1_last_sh : na, "🟡 H1 Zone High — 1 цагийн эсэргэцэл (entry бүс)", color.new(color.yellow, 30), 1)
+plot(i_showH1 ? h1_last_sl : na, "🟡 H1 Zone Low — 1 цагийн дэмжлэг (entry бүс)",    color.new(color.yellow, 30), 1)
+
+// Дэвсгэр өнгө: inducement болж buy/sell хайж байгаа үе
+bgcolor(ind_bull ? color.new(color.green, 90) : na, title="🟢 Ногоон дэвсгэр — BUY боломж хайж байна (inducement дууссан)")
+bgcolor(ind_bear ? color.new(color.red,   90) : na, title="🔴 Улаан дэвсгэр — SELL боломж хайж байна (inducement дууссан)")
+
+// Тайлбар хайрцаг
+var table infoBox = table.new(position.top_right, 1, 7, bgcolor=color.new(color.black, 60), border_color=color.gray, border_width=1)
+table.cell(infoBox, 0, 0, "📊 XAUUSD MTF Signal [SMC]", text_color=color.white, text_size=size.small)
+table.cell(infoBox, 0, 1, "━━━━━━━━━━━━━━━━━━━", text_color=color.gray, text_size=size.tiny)
+table.cell(infoBox, 0, 2, "🔵 Цэнхэр зураас  → D1 том S/R", text_color=color.new(color.blue, 20), text_size=size.tiny)
+table.cell(infoBox, 0, 3, "🟠 Улбар зураас  → H4 swing цэг", text_color=color.orange, text_size=size.tiny)
+table.cell(infoBox, 0, 4, "🟡 Шар зураас     → H1 entry бүс", text_color=color.yellow, text_size=size.tiny)
+table.cell(infoBox, 0, 5, "🟢 Ногоон дэвсгэр → BUY хайж байна", text_color=color.green, text_size=size.tiny)
+table.cell(infoBox, 0, 6, "🔴 Улаан дэвсгэр  → SELL хайж байна", text_color=color.red, text_size=size.tiny)
 
 // ════════════════════════════════════════
 // ALERTS
 // ════════════════════════════════════════
 alertcondition(buyConf,
   "BUY — Confirmation",
-  '{"signal":"BUY","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","inducement":"done","entry":"confirmation_candle","time":"{{time}}","price":"{{close}}"}')
+  '{"signal":"BUY","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","entry":"confirmation_candle","time":"{{time}}","price":"{{close}}","sl":"' + str.tostring(buySL, "#.##") + '","tp":"' + str.tostring(buyTP, "#.##") + '","rr":"' + str.tostring(rrRatio, "#.#") + '"}')
 
 alertcondition(buyRisk,
   "BUY — Risk Entry",
-  '{"signal":"BUY","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","inducement":"done","entry":"risk_entry","time":"{{time}}","price":"{{close}}"}')
+  '{"signal":"BUY","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","entry":"risk_entry","time":"{{time}}","price":"{{close}}","sl":"' + str.tostring(buySL, "#.##") + '","tp":"' + str.tostring(buyTP, "#.##") + '","rr":"' + str.tostring(rrRatio, "#.#") + '"}')
 
 alertcondition(sellConf,
   "SELL — Confirmation",
-  '{"signal":"SELL","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","inducement":"done","entry":"confirmation_candle","time":"{{time}}","price":"{{close}}"}')
+  '{"signal":"SELL","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","entry":"confirmation_candle","time":"{{time}}","price":"{{close}}","sl":"' + str.tostring(sellSL, "#.##") + '","tp":"' + str.tostring(sellTP, "#.##") + '","rr":"' + str.tostring(rrRatio, "#.#") + '"}')
 
 alertcondition(sellRisk,
   "SELL — Risk Entry",
-  '{"signal":"SELL","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","inducement":"done","entry":"risk_entry","time":"{{time}}","price":"{{close}}"}')
+  '{"signal":"SELL","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","entry":"risk_entry","time":"{{time}}","price":"{{close}}","sl":"' + str.tostring(sellSL, "#.##") + '","tp":"' + str.tostring(sellTP, "#.##") + '","rr":"' + str.tostring(rrRatio, "#.#") + '"}')
