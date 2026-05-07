@@ -132,13 +132,14 @@ def format_signal(data: dict) -> str:
     entry  = data.get("entry", "?")
     price  = data.get("price", "?")
     sl     = data.get("sl", "?")
-    tp     = data.get("tp", "?")
-    rr     = data.get("rr", "?")
+    tp1    = data.get("tp1", "?")
+    tp2    = data.get("tp2", "?")
+    tp3    = data.get("tp3", "?")
     trend  = data.get("d1_trend", "?")
     time   = data.get("time", "")
 
-    emoji        = "🟢" if signal == "BUY" else "🔴"
-    entry_label  = "Confirmation ✓" if entry == "confirmation_candle" else "Risk Entry ⚡"
+    emoji       = "🟢" if signal == "BUY" else "🔴"
+    entry_label = "Confirmation ✓" if entry == "confirmation_candle" else "Risk Entry ⚡"
 
     return (
         f"{emoji} <b>XAUUSD {signal}</b>\n"
@@ -146,8 +147,9 @@ def format_signal(data: dict) -> str:
         f"📌 Entry  : {entry_label}\n"
         f"💰 Price  : {price}\n"
         f"🛑 SL     : {sl}\n"
-        f"🎯 TP     : {tp}\n"
-        f"⚖️ RR     : 1 : {rr}\n"
+        f"🎯 TP1    : {tp1}  (1:1)\n"
+        f"🎯 TP2    : {tp2}  (1:2)\n"
+        f"🎯 TP3    : {tp3}  (1:3+)\n"
         f"📈 Trend  : D1 {trend}\n"
         f"🕐 Time   : {time}\n"
         f"━━━━━━━━━━━━━━━\n"
