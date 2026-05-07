@@ -5,10 +5,12 @@ indicator("XAUUSD MTF Signal [SMC]", overlay=true, max_bars_back=500)
 // INPUTS
 // ════════════════════════════════════════
 i_swingLen   = input.int(5,     "Swing Length",         minval=3, group="Settings")
-i_zoneBuf    = input.float(1.0, "Zone Buffer (points)", minval=0.1, group="Settings")
+i_zoneBuf    = input.float(3.0, "Zone Buffer (points)", minval=0.1, group="Settings")
+i_emaLen     = input.int(50,    "D1 EMA Length",         group="Settings")
 i_showD1     = input.bool(true, "D1 Levels",            group="Display")
 i_showH4     = input.bool(true, "H4 Structure",         group="Display")
 i_showH1     = input.bool(true, "H1 Zones",             group="Display")
+i_showEMA    = input.bool(true, "D1 EMA",               group="Display")
 
 // ════════════════════════════════════════
 // MULTI-TIMEFRAME DATA
@@ -25,6 +27,13 @@ h4_sl    = request.security(syminfo.tickerid, "240", ta.pivotlow(low,  i_swingLe
 
 h1_sh    = request.security(syminfo.tickerid, "60",  ta.pivothigh(high, i_swingLen, i_swingLen))
 h1_sl    = request.security(syminfo.tickerid, "60",  ta.pivotlow(low,  i_swingLen, i_swingLen))
+
+// ════════════════════════════════════════
+// D1 EMA 50
+// ════════════════════════════════════════
+d1_ema     = request.security(syminfo.tickerid, "D", ta.ema(close, i_emaLen))
+ema_bull   = close > d1_ema
+ema_bear   = close < d1_ema
 
 // ════════════════════════════════════════
 // D1 TREND — Dow Theory (HH/HL эсвэл LH/LL)
@@ -72,10 +81,10 @@ if not na(h4_sl)
 var bool ind_bull = false
 var bool ind_bear = false
 
-bullInd_trigger = d1_bull and not na(h4_last_sl) and
+bullInd_trigger = (d1_bull or ema_bull) and not na(h4_last_sl) and
                   low < h4_last_sl and close > h4_last_sl
 
-bearInd_trigger = d1_bear and not na(h4_last_sh) and
+bearInd_trigger = (d1_bear or ema_bear) and not na(h4_last_sh) and
                   high > h4_last_sh and close < h4_last_sh
 
 if bullInd_trigger
@@ -86,8 +95,10 @@ if bearInd_trigger
     ind_bear := true
     ind_bull := false
 
-if not na(h4_sh) or not na(h4_sl)
+// Зөвхөн эсрэг чиглэлийн pivot гарвал reset хийнэ
+if not na(h4_sh) and ind_bull
     ind_bull := false
+if not na(h4_sl) and ind_bear
     ind_bear := false
 
 // ════════════════════════════════════════
@@ -177,12 +188,15 @@ plotshape(sellConf, "SELL Confirm", shape.labeldown,  location.abovebar,
 plotshape(sellRisk, "SELL Risk",    shape.triangledown, location.abovebar,
           color.new(color.orange, 20), size=size.small)
 
-trendColor = d1_bull ? color.green : d1_bear ? color.red : color.gray
-trendText  = d1_bull ? "D1: BULL" : d1_bear ? "D1: BEAR" : "D1: NEUTRAL"
+trendColor = d1_bull ? color.green : d1_bear ? color.red : ema_bull ? color.lime : ema_bear ? color.orange : color.gray
+trendText  = d1_bull ? "D1: BULL (DOW)" : d1_bear ? "D1: BEAR (DOW)" : ema_bull ? "D1: BULL (EMA)" : ema_bear ? "D1: BEAR (EMA)" : "D1: NEUTRAL"
 var label trendLabel = na
 label.delete(trendLabel)
 trendLabel := label.new(bar_index, high * 1.001, trendText,
               color=trendColor, textcolor=color.white, size=size.small)
+
+// D1 EMA 50
+plot(i_showEMA ? d1_ema : na, "D1 EMA 50", color.new(color.white, 30), 2)
 
 // D1 том эсэргэцэл/дэмжлэгийн шугам (цэнхэр, зузаан)
 plot(i_showD1 ? d1_last_sh : na, "📘 D1 Resistance — Өдрийн том эсэргэцэл", color.new(color.blue, 40), 2)
@@ -213,18 +227,14 @@ table.cell(infoBox, 0, 6, "🔴 Улаан дэвсгэр  → SELL хайж б�
 // ════════════════════════════════════════
 // ALERTS
 // ════════════════════════════════════════
-alertcondition(buyConf,
-  "BUY — Confirmation",
-  '{"signal":"BUY","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","entry":"confirmation_candle","time":"{{time}}","price":"{{close}}","sl":"' + str.tostring(buySL, "#.##") + '","tp1":"' + str.tostring(buyTP1, "#.##") + '","tp2":"' + str.tostring(buyTP2, "#.##") + '","tp3":"' + str.tostring(buyTP3, "#.##") + '"}')
+if buyConf
+    alert('{"signal":"BUY","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","entry":"confirmation_candle","price":"' + str.tostring(close, "#.##") + '","sl":"' + str.tostring(buySL, "#.##") + '","tp1":"' + str.tostring(buyTP1, "#.##") + '","tp2":"' + str.tostring(buyTP2, "#.##") + '","tp3":"' + str.tostring(buyTP3, "#.##") + '"}', alert.freq_once_per_bar_close)
 
-alertcondition(buyRisk,
-  "BUY — Risk Entry",
-  '{"signal":"BUY","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","entry":"risk_entry","time":"{{time}}","price":"{{close}}","sl":"' + str.tostring(buySL, "#.##") + '","tp1":"' + str.tostring(buyTP1, "#.##") + '","tp2":"' + str.tostring(buyTP2, "#.##") + '","tp3":"' + str.tostring(buyTP3, "#.##") + '"}')
+if buyRisk
+    alert('{"signal":"BUY","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","entry":"risk_entry","price":"' + str.tostring(close, "#.##") + '","sl":"' + str.tostring(buySL, "#.##") + '","tp1":"' + str.tostring(buyTP1, "#.##") + '","tp2":"' + str.tostring(buyTP2, "#.##") + '","tp3":"' + str.tostring(buyTP3, "#.##") + '"}', alert.freq_once_per_bar_close)
 
-alertcondition(sellConf,
-  "SELL — Confirmation",
-  '{"signal":"SELL","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","entry":"confirmation_candle","time":"{{time}}","price":"{{close}}","sl":"' + str.tostring(sellSL, "#.##") + '","tp1":"' + str.tostring(sellTP1, "#.##") + '","tp2":"' + str.tostring(sellTP2, "#.##") + '","tp3":"' + str.tostring(sellTP3, "#.##") + '"}')
+if sellConf
+    alert('{"signal":"SELL","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","entry":"confirmation_candle","price":"' + str.tostring(close, "#.##") + '","sl":"' + str.tostring(sellSL, "#.##") + '","tp1":"' + str.tostring(sellTP1, "#.##") + '","tp2":"' + str.tostring(sellTP2, "#.##") + '","tp3":"' + str.tostring(sellTP3, "#.##") + '"}', alert.freq_once_per_bar_close)
 
-alertcondition(sellRisk,
-  "SELL — Risk Entry",
-  '{"signal":"SELL","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","entry":"risk_entry","time":"{{time}}","price":"{{close}}","sl":"' + str.tostring(sellSL, "#.##") + '","tp1":"' + str.tostring(sellTP1, "#.##") + '","tp2":"' + str.tostring(sellTP2, "#.##") + '","tp3":"' + str.tostring(sellTP3, "#.##") + '"}')
+if sellRisk
+    alert('{"signal":"SELL","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","entry":"risk_entry","price":"' + str.tostring(close, "#.##") + '","sl":"' + str.tostring(sellSL, "#.##") + '","tp1":"' + str.tostring(sellTP1, "#.##") + '","tp2":"' + str.tostring(sellTP2, "#.##") + '","tp3":"' + str.tostring(sellTP3, "#.##") + '"}', alert.freq_once_per_bar_close)
