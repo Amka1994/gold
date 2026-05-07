@@ -137,9 +137,14 @@ def format_signal(data: dict) -> str:
     tp3    = data.get("tp3", "?")
     trend  = data.get("d1_trend", "?")
     time   = data.get("time", "")
+    zone   = data.get("zone", "")
+    candle = data.get("candle", "")
 
-    emoji       = "🟢" if signal == "BUY" else "🔴"
-    entry_label = "Confirmation ✓" if entry == "confirmation_candle" else "Risk Entry ⚡"
+    emoji        = "🟢" if signal == "BUY" else "🔴"
+    entry_label  = "Confirmation ✓" if entry == "confirmation_candle" else "Risk Entry ⚡"
+    trend_label  = "Bullish ▲" if signal == "BUY" else "Bearish ▼"
+    zone_label   = "H1 Zone 🟡" if zone == "H1" else "Fib 61.8% 🔵" if zone == "Fib618" else zone
+    candle_label = "Engulfing 🕯️" if candle == "engulf" else "Pin Bar 📍" if candle == "pin" else "—"
 
     return (
         f"{emoji} <b>XAUUSD {signal}</b>\n"
@@ -147,13 +152,17 @@ def format_signal(data: dict) -> str:
         f"📌 Entry  : {entry_label}\n"
         f"💰 Price  : {price}\n"
         f"🛑 SL     : {sl}\n"
-        f"🎯 TP1    : {tp1}  (1:1)\n"
-        f"🎯 TP2    : {tp2}  (1:2)\n"
-        f"🎯 TP3    : {tp3}  (1:3+)\n"
+        f"🎯 TP1    : {tp1}  (1:3)\n"
+        f"🎯 TP2    : {tp2}  (1:5)\n"
+        f"🎯 TP3    : {tp3}  (1:8)\n"
         f"📈 Trend  : D1 {trend}\n"
         f"🕐 Time   : {time}\n"
         f"━━━━━━━━━━━━━━━\n"
-        f"⚠️ Inducement confirmed | H1 zone reached"
+        f"📋 <b>Шалтгаан:</b>\n"
+        f"  • D1 EMA  → {trend_label} тренд\n"
+        f"  • H4      → Inducement sweep\n"
+        f"  • Бүс     → {zone_label}\n"
+        f"  • Candle  → {candle_label}\n"
     )
 
 
