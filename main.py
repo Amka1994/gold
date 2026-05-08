@@ -176,12 +176,11 @@ async def webhook(request: Request):
 
         # Мэдээний шүүлт
         is_news, news_title = await has_high_impact_news()
-        if is_news:
-            log_signal(data, blocked=True, block_reason=f"High impact news: {news_title}")
-            return JSONResponse({"status": "blocked", "reason": news_title})
 
-        # Сигнал илгээх
+        # Сигнал илгээх — мэдээ байвал анхааруулга нэмнэ
         message = format_signal(data)
+        if is_news:
+            message += f"\n⚠️ <b>АНХААРУУЛГА:</b> Өндөр нөлөөтэй мэдээ байна!\n📰 {news_title}\n⚡ Болгоомжтой орно уу."
         await send_telegram(message)
         log_signal(data, blocked=False)
 

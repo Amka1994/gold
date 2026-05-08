@@ -4,39 +4,44 @@ indicator("XAUUSD MTF Signal [SMC]", overlay=true, max_bars_back=500)
 // ════════════════════════════════════════
 // INPUTS
 // ════════════════════════════════════════
-i_swingLen   = input.int(5,     "Swing Length",         minval=3, group="Settings")
-i_zoneBuf    = input.float(3.0, "Zone Buffer (points)", minval=0.1, group="Settings")
-i_emaLen     = input.int(50,    "D1 EMA Length",         group="Settings")
-i_showD1     = input.bool(true, "D1 Levels",            group="Display")
-i_showH4     = input.bool(true, "H4 Structure",         group="Display")
-i_showH1     = input.bool(true, "H1 Zones",             group="Display")
-i_showEMA    = input.bool(true, "D1 EMA",               group="Display")
+i_swingLen     = input.int(5,     "Swing Length",          minval=3,  group="Settings")
+i_emaLen       = input.int(50,    "D1 EMA Length",                    group="Settings")
+atrLen         = input.int(14,    "ATR Length",                       group="Settings")
+i_zoneBufMult  = input.float(0.5, "Zone Buffer (ATR x)",   minval=0.1, group="Settings")
+slMult         = input.float(1.5, "SL (ATR x)",                       group="Settings")
+tp1Mult        = input.float(1.5, "TP1 (ATR x) — 1:1",               group="Settings")
+tp2Mult        = input.float(3.0, "TP2 (ATR x) — 1:2",               group="Settings")
+tp3Mult        = input.float(5.0, "TP3 (ATR x) — 1:3+",              group="Settings")
+i_volLen       = input.int(20,    "Volume MA урт",          minval=5,  group="Settings")
+i_showD1       = input.bool(true,  "D1 Levels",                       group="Display")
+i_showH4       = input.bool(true,  "H4 Structure",                    group="Display")
+i_showH1       = input.bool(true,  "H1 FVG Zones",                    group="Display")
+i_showEMA      = input.bool(false, "D1 EMA (шугам)",                  group="Display")
+i_showVol      = input.bool(true,  "Volume өнгө",                     group="Display")
+
+// ════════════════════════════════════════
+// ATR
+// ════════════════════════════════════════
+atr    = ta.atr(atrLen)
+dynBuf = atr * i_zoneBufMult
 
 // ════════════════════════════════════════
 // MULTI-TIMEFRAME DATA
 // ════════════════════════════════════════
-d1_high  = request.security(syminfo.tickerid, "D",   high)
-d1_low   = request.security(syminfo.tickerid, "D",   low)
-d1_sh    = request.security(syminfo.tickerid, "D",   ta.pivothigh(high, i_swingLen, i_swingLen))
-d1_sl    = request.security(syminfo.tickerid, "D",   ta.pivotlow(low,  i_swingLen, i_swingLen))
-
-h4_high  = request.security(syminfo.tickerid, "240", high)
-h4_low   = request.security(syminfo.tickerid, "240", low)
-h4_sh    = request.security(syminfo.tickerid, "240", ta.pivothigh(high, i_swingLen, i_swingLen))
-h4_sl    = request.security(syminfo.tickerid, "240", ta.pivotlow(low,  i_swingLen, i_swingLen))
-
-h1_sh    = request.security(syminfo.tickerid, "60",  ta.pivothigh(high, i_swingLen, i_swingLen))
-h1_sl    = request.security(syminfo.tickerid, "60",  ta.pivotlow(low,  i_swingLen, i_swingLen))
+d1_sh = request.security(syminfo.tickerid, "D",   ta.pivothigh(high, i_swingLen, i_swingLen))
+d1_sl = request.security(syminfo.tickerid, "D",   ta.pivotlow(low,  i_swingLen, i_swingLen))
+h4_sh = request.security(syminfo.tickerid, "240", ta.pivothigh(high, i_swingLen, i_swingLen))
+h4_sl = request.security(syminfo.tickerid, "240", ta.pivotlow(low,  i_swingLen, i_swingLen))
 
 // ════════════════════════════════════════
 // D1 EMA 50
 // ════════════════════════════════════════
-d1_ema     = request.security(syminfo.tickerid, "D", ta.ema(close, i_emaLen))
-ema_bull   = close > d1_ema
-ema_bear   = close < d1_ema
+d1_ema   = request.security(syminfo.tickerid, "D", ta.ema(close, i_emaLen))
+ema_bull = close > d1_ema
+ema_bear = close < d1_ema
 
 // ════════════════════════════════════════
-// D1 TREND — Dow Theory (HH/HL эсвэл LH/LL)
+// D1 TREND — Dow Theory
 // ════════════════════════════════════════
 var float d1_last_sh = na
 var float d1_prev_sh = na
@@ -46,7 +51,6 @@ var float d1_prev_sl = na
 if not na(d1_sh)
     d1_prev_sh := d1_last_sh
     d1_last_sh := d1_sh
-
 if not na(d1_sl)
     d1_prev_sl := d1_last_sl
     d1_last_sl := d1_sl
@@ -60,7 +64,7 @@ d1_bear = not na(d1_last_sh) and not na(d1_prev_sh) and
           d1_last_sh < d1_prev_sh and d1_last_sl < d1_prev_sl
 
 // ════════════════════════════════════════
-// H4 DOW STRUCTURE
+// H4 STRUCTURE
 // ════════════════════════════════════════
 var float h4_last_sh = na
 var float h4_prev_sh = na
@@ -70,171 +74,208 @@ var float h4_prev_sl = na
 if not na(h4_sh)
     h4_prev_sh := h4_last_sh
     h4_last_sh := h4_sh
-
 if not na(h4_sl)
     h4_prev_sl := h4_last_sl
     h4_last_sl := h4_sl
 
 // ════════════════════════════════════════
-// H4 INDUCEMENT — хамгийн сүүлийн swing high/low давах
+// H4 INDUCEMENT — sweep
 // ════════════════════════════════════════
 var bool ind_bull = false
 var bool ind_bear = false
 
 bullInd_trigger = (d1_bull or ema_bull) and not na(h4_last_sl) and
                   low < h4_last_sl and close > h4_last_sl
-
 bearInd_trigger = (d1_bear or ema_bear) and not na(h4_last_sh) and
                   high > h4_last_sh and close < h4_last_sh
 
+var bool buyFired  = false
+var bool sellFired = false
+
 if bullInd_trigger
-    ind_bull := true
-    ind_bear := false
-
+    ind_bull  := true
+    ind_bear  := false
+    buyFired  := false
 if bearInd_trigger
-    ind_bear := true
-    ind_bull := false
+    ind_bear  := true
+    ind_bull  := false
+    sellFired := false
 
-// Зөвхөн эсрэг чиглэлийн pivot гарвал reset хийнэ
 if not na(h4_sh) and ind_bull
     ind_bull := false
 if not na(h4_sl) and ind_bear
     ind_bear := false
 
 // ════════════════════════════════════════
-// H1 ZONE
+// H1 FVG — Fair Value Gap zone
 // ════════════════════════════════════════
-var float h1_last_sh = na
-var float h1_last_sl = na
+// Bullish FVG: bar[0].low > bar[2].high  → gap доошоо байна, үнэ буцаж дүүргэнэ
+// Bearish FVG: bar[0].high < bar[2].low  → gap дээшээ байна, үнэ буцаж дүүргэнэ
+h1_bullFVG_top = request.security(syminfo.tickerid, "60", low > high[2] ? low   : na)
+h1_bullFVG_bot = request.security(syminfo.tickerid, "60", low > high[2] ? high[2] : na)
+h1_bearFVG_top = request.security(syminfo.tickerid, "60", high < low[2] ? low[2] : na)
+h1_bearFVG_bot = request.security(syminfo.tickerid, "60", high < low[2] ? high  : na)
 
-if not na(h1_sh)
-    h1_last_sh := h1_sh
+var float fvgBullTop = na
+var float fvgBullBot = na
+var float fvgBearTop = na
+var float fvgBearBot = na
 
-if not na(h1_sl)
-    h1_last_sl := h1_sl
+if not na(h1_bullFVG_top)
+    fvgBullTop := h1_bullFVG_top
+    fvgBullBot := h1_bullFVG_bot
 
-inBullZone = not na(h1_last_sl) and
-             low  <= h1_last_sl + i_zoneBuf and
-             close >= h1_last_sl - i_zoneBuf
+if not na(h1_bearFVG_top)
+    fvgBearTop := h1_bearFVG_top
+    fvgBearBot := h1_bearFVG_bot
 
-inBearZone = not na(h1_last_sh) and
-             high >= h1_last_sh - i_zoneBuf and
-             close <= h1_last_sh + i_zoneBuf
+// FVG дотор байгаа эсэх — dynBuf нэмэлт хүлцэл болно
+inBullZone = not na(fvgBullBot) and close >= fvgBullBot - dynBuf and close <= fvgBullTop + dynBuf
+inBearZone = not na(fvgBearBot) and close <= fvgBearTop + dynBuf and close >= fvgBearBot - dynBuf
+
+// Zone хүртэлх зай
+distToBullZone = not na(fvgBullTop) and close > fvgBullTop ? close - fvgBullTop : na
+distToBearZone = not na(fvgBearBot) and close < fvgBearBot ? fvgBearBot - close : na
 
 // ════════════════════════════════════════
 // M5 CANDLE PATTERNS
 // ════════════════════════════════════════
 candleSize = high - low + 0.0001
 
-bullEngulf = close > open and close[1] < open[1] and
-             close > open[1] and open <= close[1]
+bullEngulf = close > open and close[1] < open[1] and close > open[1] and open <= close[1]
+bearEngulf = close < open and close[1] > open[1] and close < open[1] and open >= close[1]
 
-bearEngulf = close < open and close[1] > open[1] and
-             close < open[1] and open >= close[1]
+bullPin = close > open and (open - low) / candleSize > 0.55 and (high - close) / candleSize < 0.25
+bearPin = close < open and (high - open) / candleSize > 0.55 and (close - low)  / candleSize < 0.25
 
-bullPin = close > open and
-          (open - low) / candleSize > 0.55 and
-          (high - close) / candleSize < 0.25
+bullClose = close > open and close > close[1] and (close - open) > atr * 0.3
+bearClose = close < open and close < close[1] and (open - close) > atr * 0.3
 
-bearPin = close < open and
-          (high - open) / candleSize > 0.55 and
-          (close - low) / candleSize < 0.25
-
-bullCandle = bullEngulf or bullPin
-bearCandle = bearEngulf or bearPin
+bullCandle = bullEngulf or bullPin or bullClose
+bearCandle = bearEngulf or bearPin or bearClose
 
 // ════════════════════════════════════════
-// ATR-Д СУУРИЛСАН SL/TP
+// VOLUME
 // ════════════════════════════════════════
-atrLen   = input.int(14,  "ATR Length",          group="Settings")
-slMult   = input.float(1.5, "SL (ATR x)",         group="Settings")
-tp1Mult  = input.float(1.5, "TP1 (ATR x) — 1:1",  group="Settings")
-tp2Mult  = input.float(3.0, "TP2 (ATR x) — 1:2",  group="Settings")
-tp3Mult  = input.float(5.0, "TP3 (ATR x) — 1:3+", group="Settings")
+volMA     = ta.sma(volume, i_volLen)
+volStrong = volume > volMA * 1.5
+volWeak   = volume < volMA * 0.7
+volText   = volStrong ? "🔥 Өндөр" : volWeak ? "😴 Доогуур" : "📊 Дундаж"
+volColor  = volStrong ? color.new(color.teal, 30) : volWeak ? color.new(color.gray, 50) : color.new(color.blue, 50)
 
-atr = ta.atr(atrLen)
-
-// BUY levels
-buySL  = close - atr * slMult
-buyTP1 = close + atr * tp1Mult
-buyTP2 = close + atr * tp2Mult
-buyTP3 = close + atr * tp3Mult
-
-// SELL levels
+// ════════════════════════════════════════
+// SL / TP
+// ════════════════════════════════════════
+buySL   = close - atr * slMult
+buyTP1  = close + atr * tp1Mult
+buyTP2  = close + atr * tp2Mult
+buyTP3  = close + atr * tp3Mult
 sellSL  = close + atr * slMult
 sellTP1 = close - atr * tp1Mult
 sellTP2 = close - atr * tp2Mult
 sellTP3 = close - atr * tp3Mult
 
 // ════════════════════════════════════════
-// FINAL SIGNALS
+// FINAL SIGNALS — 1 sweep = 1 сигнал
 // ════════════════════════════════════════
-buyConf  = ind_bull and inBullZone and bullCandle
-buyRisk  = ind_bull and inBullZone and not bullCandle
+buyConf  = ind_bull and inBullZone and bullCandle  and not buyFired
+buyRisk  = ind_bull and inBullZone and not bullCandle and not buyFired
+sellConf = ind_bear and inBearZone and bearCandle  and not sellFired
+sellRisk = ind_bear and inBearZone and not bearCandle and not sellFired
 
-sellConf = ind_bear and inBearZone and bearCandle
-sellRisk = ind_bear and inBearZone and not bearCandle
+if buyConf  or buyRisk
+    buyFired  := true
+if sellConf or sellRisk
+    sellFired := true
 
 // ════════════════════════════════════════
 // VISUALS
 // ════════════════════════════════════════
-plotshape(buyConf,  "BUY Confirm",  shape.labelup,    location.belowbar,
-          color.new(color.green, 0), text="BUY ✓", textcolor=color.white, size=size.normal)
-plotshape(buyRisk,  "BUY Risk",     shape.triangleup,  location.belowbar,
-          color.new(color.lime, 20), size=size.small)
-
-plotshape(sellConf, "SELL Confirm", shape.labeldown,  location.abovebar,
-          color.new(color.red, 0), text="SELL ✓", textcolor=color.white, size=size.normal)
-plotshape(sellRisk, "SELL Risk",    shape.triangledown, location.abovebar,
-          color.new(color.orange, 20), size=size.small)
-
 trendColor = d1_bull ? color.green : d1_bear ? color.red : ema_bull ? color.lime : ema_bear ? color.orange : color.gray
 trendText  = d1_bull ? "D1: BULL (DOW)" : d1_bear ? "D1: BEAR (DOW)" : ema_bull ? "D1: BULL (EMA)" : ema_bear ? "D1: BEAR (EMA)" : "D1: NEUTRAL"
+
+buyConfColor  = (i_showVol and volStrong) ? color.new(color.teal, 0) : color.new(color.green, 0)
+sellConfColor = (i_showVol and volStrong) ? color.new(#c000ff, 0)    : color.new(color.red,   0)
+
+plotshape(buyConf,  "BUY Confirm",  shape.labelup,     location.belowbar, buyConfColor,  text="BUY ✓",  textcolor=color.white, size=size.normal)
+plotshape(buyRisk,  "BUY Risk",     shape.triangleup,  location.belowbar, color.new(color.lime, 20),   size=size.small)
+plotshape(sellConf, "SELL Confirm", shape.labeldown,   location.abovebar, sellConfColor, text="SELL ✓", textcolor=color.white, size=size.normal)
+plotshape(sellRisk, "SELL Risk",    shape.triangledown, location.abovebar, color.new(color.orange, 20), size=size.small)
+
 var label trendLabel = na
 label.delete(trendLabel)
-trendLabel := label.new(bar_index, high * 1.001, trendText,
-              color=trendColor, textcolor=color.white, size=size.small)
+trendLabel := label.new(bar_index, high * 1.001, trendText, color=trendColor, textcolor=color.white, size=size.small)
 
-// D1 EMA 50
-plot(i_showEMA ? d1_ema : na, "D1 EMA 50", color.new(color.white, 30), 2)
+plot(i_showEMA ? d1_ema     : na, "D1 EMA 50",      color.new(color.white,  30), 2)
+plot(i_showD1  ? d1_last_sh : na, "D1 Resistance",  color.new(color.blue,   40), 2)
+plot(i_showD1  ? d1_last_sl : na, "D1 Support",     color.new(color.blue,   40), 2)
+plot(i_showH4  ? h4_last_sh : na, "H4 Swing High",  color.new(color.orange, 30), 1)
+plot(i_showH4  ? h4_last_sl : na, "H4 Swing Low",   color.new(color.orange, 30), 1)
 
-// D1 том эсэргэцэл/дэмжлэгийн шугам (цэнхэр, зузаан)
-plot(i_showD1 ? d1_last_sh : na, "📘 D1 Resistance — Өдрийн том эсэргэцэл", color.new(color.blue, 40), 2)
-plot(i_showD1 ? d1_last_sl : na, "📘 D1 Support — Өдрийн том дэмжлэг",      color.new(color.blue, 40), 2)
+// H1 FVG zone — 2 шугамаар харуулна (дээд/доод)
+plot(i_showH1 ? fvgBullTop : na, "H1 Bull FVG Top", color.new(color.yellow, 20), 1)
+plot(i_showH1 ? fvgBullBot : na, "H1 Bull FVG Bot", color.new(color.yellow, 50), 1, plot.style_linebr)
+plot(i_showH1 ? fvgBearTop : na, "H1 Bear FVG Top", color.new(color.orange, 50), 1, plot.style_linebr)
+plot(i_showH1 ? fvgBearBot : na, "H1 Bear FVG Bot", color.new(color.orange, 20), 1)
 
-// H4 бүтцийн дээд/доод цэг (улбар шар)
-plot(i_showH4 ? h4_last_sh : na, "🟠 H4 Swing High — 4 цагийн дээд цэг", color.new(color.orange, 30), 1)
-plot(i_showH4 ? h4_last_sl : na, "🟠 H4 Swing Low — 4 цагийн доод цэг",  color.new(color.orange, 30), 1)
+bgcolor(ind_bull ? color.new(color.green, 90) : na, title="BUY горим дэвсгэр")
+bgcolor(ind_bear ? color.new(color.red,   90) : na, title="SELL горим дэвсгэр")
 
-// H1 entry zone (шар)
-plot(i_showH1 ? h1_last_sh : na, "🟡 H1 Zone High — 1 цагийн эсэргэцэл (entry бүс)", color.new(color.yellow, 30), 1)
-plot(i_showH1 ? h1_last_sl : na, "🟡 H1 Zone Low — 1 цагийн дэмжлэг (entry бүс)",    color.new(color.yellow, 30), 1)
+// ════════════════════════════════════════
+// INFO TABLE
+// ════════════════════════════════════════
+var table infoBox = table.new(position.top_right, 2, 9, bgcolor=color.new(#0a0a0f, 20), border_color=color.new(color.gray, 60), border_width=1, frame_color=color.new(color.gray, 40), frame_width=1)
 
-// Дэвсгэр өнгө: inducement болж buy/sell хайж байгаа үе
-bgcolor(ind_bull ? color.new(color.green, 90) : na, title="🟢 Ногоон дэвсгэр — BUY боломж хайж байна (inducement дууссан)")
-bgcolor(ind_bear ? color.new(color.red,   90) : na, title="🔴 Улаан дэвсгэр — SELL боломж хайж байна (inducement дууссан)")
+table.cell(infoBox, 0, 0, "XAUUSD · SMC Signal", text_color=color.white, text_size=size.small, bgcolor=color.new(#1a1a2e, 10), width=18)
+table.cell(infoBox, 1, 0, trendText,              text_color=trendColor,  text_size=size.small, bgcolor=color.new(#1a1a2e, 10), width=12)
 
-// Тайлбар хайрцаг
-var table infoBox = table.new(position.top_right, 1, 7, bgcolor=color.new(color.black, 60), border_color=color.gray, border_width=1)
-table.cell(infoBox, 0, 0, "📊 XAUUSD MTF Signal [SMC]", text_color=color.white, text_size=size.small)
-table.cell(infoBox, 0, 1, "━━━━━━━━━━━━━━━━━━━", text_color=color.gray, text_size=size.tiny)
-table.cell(infoBox, 0, 2, "🔵 Цэнхэр зураас  → D1 том S/R", text_color=color.new(color.blue, 20), text_size=size.tiny)
-table.cell(infoBox, 0, 3, "🟠 Улбар зураас  → H4 swing цэг", text_color=color.orange, text_size=size.tiny)
-table.cell(infoBox, 0, 4, "🟡 Шар зураас     → H1 entry бүс", text_color=color.yellow, text_size=size.tiny)
-table.cell(infoBox, 0, 5, "🟢 Ногоон дэвсгэр → BUY хайж байна", text_color=color.green, text_size=size.tiny)
-table.cell(infoBox, 0, 6, "🔴 Улаан дэвсгэр  → SELL хайж байна", text_color=color.red, text_size=size.tiny)
+d1StatusTxt   = d1_bull ? "BULL ▲" : d1_bear ? "BEAR ▼" : ema_bull ? "EMA ▲" : ema_bear ? "EMA ▼" : "NEUTRAL"
+d1StatusColor = d1_bull ? color.lime : d1_bear ? color.red : ema_bull ? color.new(color.lime,40) : ema_bear ? color.new(color.red,40) : color.gray
+table.cell(infoBox, 0, 1, "D1 Тренд",  text_color=color.new(color.white,20), text_size=size.small, bgcolor=color.new(#0d1117,10))
+table.cell(infoBox, 1, 1, d1StatusTxt, text_color=d1StatusColor,             text_size=size.small, bgcolor=color.new(#0d1117,10))
+
+indTxt   = ind_bull ? "BUY горим ✓" : ind_bear ? "SELL горим ✓" : "Хүлээж байна"
+indColor = ind_bull ? color.lime : ind_bear ? color.red : color.new(color.gray,30)
+indBg    = ind_bull ? color.new(color.green,80) : ind_bear ? color.new(color.red,80) : color.new(#0d1117,10)
+table.cell(infoBox, 0, 2, "H4 Sweep", text_color=color.new(color.white,20), text_size=size.small, bgcolor=indBg)
+table.cell(infoBox, 1, 2, indTxt,     text_color=indColor,                  text_size=size.small, bgcolor=indBg)
+
+zoneTxt   = inBullZone ? "Bull FVG ✓" : inBearZone ? "Bear FVG ✓" : "FVG-с гадна"
+zoneColor = inBullZone ? color.lime : inBearZone ? color.red : color.new(color.gray,30)
+zoneBg    = inBullZone ? color.new(color.green,85) : inBearZone ? color.new(color.red,85) : color.new(#0d1117,10)
+distVal   = ind_bull and not inBullZone and not na(distToBullZone) ? " (" + str.tostring(math.round(distToBullZone, 1)) + "pt)" : ind_bear and not inBearZone and not na(distToBearZone) ? " (" + str.tostring(math.round(distToBearZone, 1)) + "pt)" : ""
+table.cell(infoBox, 0, 3, "H1 FVG",        text_color=color.new(color.white,20), text_size=size.small, bgcolor=zoneBg)
+table.cell(infoBox, 1, 3, zoneTxt + distVal, text_color=zoneColor,               text_size=size.small, bgcolor=zoneBg)
+
+candleTxt   = bullCandle ? "Bull candle ✓" : bearCandle ? "Bear candle ✓" : "Хүлээж байна"
+candleColor = bullCandle ? color.lime : bearCandle ? color.red : color.new(color.gray,30)
+table.cell(infoBox, 0, 4, "M5 Candle", text_color=color.new(color.white,20), text_size=size.small, bgcolor=color.new(#0d1117,10))
+table.cell(infoBox, 1, 4, candleTxt,   text_color=candleColor,               text_size=size.small, bgcolor=color.new(#0d1117,10))
+
+sigTxt   = buyConf ? "▲ BUY CONF" : sellConf ? "▼ SELL CONF" : buyRisk ? "△ BUY RISK" : sellRisk ? "▽ SELL RISK" : "— Сигнал үгүй"
+sigColor = buyConf ? color.lime : sellConf ? color.red : buyRisk ? color.new(color.lime,40) : sellRisk ? color.new(color.red,40) : color.new(color.gray,30)
+sigBg    = buyConf ? color.new(color.green,70) : sellConf ? color.new(color.red,70) : color.new(#0d1117,10)
+table.cell(infoBox, 0, 5, "Сигнал", text_color=color.new(color.white,20), text_size=size.small, bgcolor=sigBg)
+table.cell(infoBox, 1, 5, sigTxt,   text_color=sigColor,                  text_size=size.small, bgcolor=sigBg)
+
+fvgSizeTxt = not na(fvgBullTop) and not na(fvgBullBot) ? "Bull: " + str.tostring(math.round(fvgBullTop - fvgBullBot, 1)) + "pt" : not na(fvgBearTop) and not na(fvgBearBot) ? "Bear: " + str.tostring(math.round(fvgBearTop - fvgBearBot, 1)) + "pt" : "—"
+table.cell(infoBox, 0, 6, "FVG хэмжээ", text_color=color.new(color.white,20), text_size=size.small, bgcolor=color.new(#0d1117,10))
+table.cell(infoBox, 1, 6, fvgSizeTxt,   text_color=color.new(color.silver,20), text_size=size.small, bgcolor=color.new(#0d1117,10))
+
+table.cell(infoBox, 0, 7, "", bgcolor=color.new(color.gray,80), text_color=color.gray, text_size=size.tiny)
+table.cell(infoBox, 1, 7, "", bgcolor=color.new(color.gray,80), text_color=color.gray, text_size=size.tiny)
+
+table.cell(infoBox, 0, 8, "Volume", text_color=color.new(color.white,20), text_size=size.small, bgcolor=color.new(#0d1117,10))
+table.cell(infoBox, 1, 8, volText + " · " + str.tostring(math.round(volume / volMA * 100)) + "%", text_color=volColor, text_size=size.small, bgcolor=color.new(#0d1117,10))
 
 // ════════════════════════════════════════
 // ALERTS
 // ════════════════════════════════════════
 if buyConf
-    alert('{"signal":"BUY","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","entry":"confirmation_candle","price":"' + str.tostring(close, "#.##") + '","sl":"' + str.tostring(buySL, "#.##") + '","tp1":"' + str.tostring(buyTP1, "#.##") + '","tp2":"' + str.tostring(buyTP2, "#.##") + '","tp3":"' + str.tostring(buyTP3, "#.##") + '"}', alert.freq_once_per_bar_close)
-
+    alert('{"signal":"BUY","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","price":"' + str.tostring(close,"#.##") + '","sl":"' + str.tostring(buySL,"#.##") + '","tp1":"' + str.tostring(buyTP1,"#.##") + '","tp2":"' + str.tostring(buyTP2,"#.##") + '","tp3":"' + str.tostring(buyTP3,"#.##") + '","volume":"' + volText + '"}', alert.freq_once_per_bar_close)
 if buyRisk
-    alert('{"signal":"BUY","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","entry":"risk_entry","price":"' + str.tostring(close, "#.##") + '","sl":"' + str.tostring(buySL, "#.##") + '","tp1":"' + str.tostring(buyTP1, "#.##") + '","tp2":"' + str.tostring(buyTP2, "#.##") + '","tp3":"' + str.tostring(buyTP3, "#.##") + '"}', alert.freq_once_per_bar_close)
-
+    alert('{"signal":"BUY","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","price":"' + str.tostring(close,"#.##") + '","sl":"' + str.tostring(buySL,"#.##") + '","tp1":"' + str.tostring(buyTP1,"#.##") + '","tp2":"' + str.tostring(buyTP2,"#.##") + '","tp3":"' + str.tostring(buyTP3,"#.##") + '","volume":"' + volText + '"}', alert.freq_once_per_bar_close)
 if sellConf
-    alert('{"signal":"SELL","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","entry":"confirmation_candle","price":"' + str.tostring(close, "#.##") + '","sl":"' + str.tostring(sellSL, "#.##") + '","tp1":"' + str.tostring(sellTP1, "#.##") + '","tp2":"' + str.tostring(sellTP2, "#.##") + '","tp3":"' + str.tostring(sellTP3, "#.##") + '"}', alert.freq_once_per_bar_close)
-
+    alert('{"signal":"SELL","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","price":"' + str.tostring(close,"#.##") + '","sl":"' + str.tostring(sellSL,"#.##") + '","tp1":"' + str.tostring(sellTP1,"#.##") + '","tp2":"' + str.tostring(sellTP2,"#.##") + '","tp3":"' + str.tostring(sellTP3,"#.##") + '","volume":"' + volText + '"}', alert.freq_once_per_bar_close)
 if sellRisk
-    alert('{"signal":"SELL","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","entry":"risk_entry","price":"' + str.tostring(close, "#.##") + '","sl":"' + str.tostring(sellSL, "#.##") + '","tp1":"' + str.tostring(sellTP1, "#.##") + '","tp2":"' + str.tostring(sellTP2, "#.##") + '","tp3":"' + str.tostring(sellTP3, "#.##") + '"}', alert.freq_once_per_bar_close)
+    alert('{"signal":"SELL","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","price":"' + str.tostring(close,"#.##") + '","sl":"' + str.tostring(sellSL,"#.##") + '","tp1":"' + str.tostring(sellTP1,"#.##") + '","tp2":"' + str.tostring(sellTP2,"#.##") + '","tp3":"' + str.tostring(sellTP3,"#.##") + '","volume":"' + volText + '"}', alert.freq_once_per_bar_close)
