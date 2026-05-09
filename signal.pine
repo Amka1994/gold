@@ -1,77 +1,154 @@
 //@version=5
-indicator("XAUUSD MTF Signal [SMC]", overlay=true, max_bars_back=500)
+indicator("XAUUSD SMC Pro", overlay=true, max_bars_back=500)
 
 // ════════════════════════════════════════
 // INPUTS
 // ════════════════════════════════════════
-i_swingLen    = input.int(5,     "Swing Length",         minval=2,   group="Settings")
-i_emaLen      = input.int(50,    "D1 EMA Length",                    group="Settings")
-i_h4EmaLen    = input.int(50,    "H4 EMA Length",                    group="Settings")
-atrLen        = input.int(14,    "ATR Length",                       group="Settings")
-i_zoneBufMult = input.float(0.5, "Zone Buffer (ATR x)",  minval=0.1, group="Settings")
-i_slBuf       = input.float(0.3, "SL Buffer (ATR x)",   minval=0.1, group="Settings")
-tp1RR         = input.float(1.5, "TP1 R:R",                         group="Settings")
-tp2RR         = input.float(3.0, "TP2 R:R",                         group="Settings")
-tp3RR         = input.float(5.0, "TP3 R:R",                         group="Settings")
-i_volLen      = input.int(20,    "Volume MA урт",         minval=5,   group="Settings")
-i_showD1      = input.bool(true,  "D1 Levels",                       group="Display")
-i_showH4      = input.bool(true,  "H4 Structure",                    group="Display")
-i_showH1      = input.bool(true,  "H1 FVG Zones",                    group="Display")
-i_showEMA     = input.bool(false, "D1 EMA (шугам)",                  group="Display")
-i_showVol     = input.bool(true,  "Volume өнгө",                     group="Display")
+i_emaLen     = input.int(50,    "D1 EMA",                  group="Settings")
+i_h4EmaLen   = input.int(50,    "H4 EMA",                  group="Settings")
+i_swingLen   = input.int(5,     "Swing Length",  minval=2,  group="Settings")
+atrLen       = input.int(14,    "ATR Length",               group="Settings")
+i_slBuf      = input.float(0.3, "SL Buffer (ATR x)",        group="Settings")
+tp1RR        = input.float(1.5, "TP1 R:R",                  group="Settings")
+tp2RR        = input.float(3.0, "TP2 R:R",                  group="Settings")
+tp3RR        = input.float(5.0, "TP3 R:R",                  group="Settings")
+i_volLen     = input.int(20,    "Volume MA",     minval=5,   group="Settings")
+i_keyATR     = input.float(2.0, "Key Level (ATR x)", minval=0.5, group="Settings")
+i_showEMA    = input.bool(false, "EMA шугам",               group="Display")
+i_showLevels = input.bool(true,  "Key Levels",              group="Display")
+i_showFVG    = input.bool(true,  "H1 FVG",                  group="Display")
+i_showStruct = input.bool(true,  "Structure шугам",         group="Display")
 
 // ════════════════════════════════════════
 // ATR
 // ════════════════════════════════════════
-atr    = ta.atr(atrLen)
-dynBuf = atr * i_zoneBufMult
+atr = ta.atr(atrLen)
 
 // ════════════════════════════════════════
-// MULTI-TIMEFRAME DATA
+// MTF DATA
 // ════════════════════════════════════════
-d1_sh = request.security(syminfo.tickerid, "D",   ta.pivothigh(high, i_swingLen, i_swingLen))
-d1_sl = request.security(syminfo.tickerid, "D",   ta.pivotlow(low,  i_swingLen, i_swingLen))
-h4_sh = request.security(syminfo.tickerid, "240", ta.pivothigh(high, i_swingLen, i_swingLen))
-h4_sl = request.security(syminfo.tickerid, "240", ta.pivotlow(low,  i_swingLen, i_swingLen))
-h1_sh = request.security(syminfo.tickerid, "60",  ta.pivothigh(high, i_swingLen, i_swingLen))
-h1_sl = request.security(syminfo.tickerid, "60",  ta.pivotlow(low,  i_swingLen, i_swingLen))
+d1_sh  = request.security(syminfo.tickerid, "D",   ta.pivothigh(high, i_swingLen, i_swingLen))
+d1_sl  = request.security(syminfo.tickerid, "D",   ta.pivotlow(low,   i_swingLen, i_swingLen))
+h4_sh  = request.security(syminfo.tickerid, "240", ta.pivothigh(high, i_swingLen, i_swingLen))
+h4_sl  = request.security(syminfo.tickerid, "240", ta.pivotlow(low,   i_swingLen, i_swingLen))
+h1_sh  = request.security(syminfo.tickerid, "60",  ta.pivothigh(high, i_swingLen, i_swingLen))
+h1_sl  = request.security(syminfo.tickerid, "60",  ta.pivotlow(low,   i_swingLen, i_swingLen))
+d1_ema = request.security(syminfo.tickerid, "D",   ta.ema(close, i_emaLen))
+h4_ema = request.security(syminfo.tickerid, "240", ta.ema(close, i_h4EmaLen))
 
 // ════════════════════════════════════════
-// D1 EMA — чиглэл (bias)
+// 1. D1 BIAS — EMA 50
 // ════════════════════════════════════════
-d1_ema       = request.security(syminfo.tickerid, "D",   ta.ema(close, i_emaLen))
-h4_ema       = request.security(syminfo.tickerid, "240", ta.ema(close, i_h4EmaLen))
+d1_bull = close > d1_ema
+d1_bear = close < d1_ema
 
-d1_bias_bull = close > d1_ema
-d1_bias_bear = close < d1_ema
+// ════════════════════════════════════════
+// 2. H4 CONFIRMATION — EMA 50
+// ════════════════════════════════════════
+h4_bull = close > h4_ema
+h4_bear = close < h4_ema
 
-h4_bull      = close > h4_ema
-h4_bear      = close < h4_ema
-
-// Dow Theory — зөвхөн визуал болон label-д ашиглана
+// ════════════════════════════════════════
+// PIVOT TRACKING — визуал зориулалттай
+// ════════════════════════════════════════
 var float d1_last_sh = na
-var float d1_prev_sh = na
 var float d1_last_sl = na
-var float d1_prev_sl = na
+var float h4_last_sh = na
+var float h4_last_sl = na
 
 if not na(d1_sh)
-    d1_prev_sh := d1_last_sh
     d1_last_sh := d1_sh
 if not na(d1_sl)
-    d1_prev_sl := d1_last_sl
     d1_last_sl := d1_sl
-
-d1_bull = not na(d1_last_sh) and not na(d1_prev_sh) and
-          not na(d1_last_sl) and not na(d1_prev_sl) and
-          d1_last_sh > d1_prev_sh and d1_last_sl > d1_prev_sl
-
-d1_bear = not na(d1_last_sh) and not na(d1_prev_sh) and
-          not na(d1_last_sl) and not na(d1_prev_sl) and
-          d1_last_sh < d1_prev_sh and d1_last_sl < d1_prev_sl
+if not na(h4_sh)
+    h4_last_sh := h4_sh
+if not na(h4_sl)
+    h4_last_sl := h4_sl
 
 // ════════════════════════════════════════
-// H1 FVG — Fair Value Gap (live detection)
+// 3. KEY LEVELS
+// D1 swing high/low + Round number (50pt)
 // ════════════════════════════════════════
+nearD1Sup = not na(d1_last_sl) and math.abs(close - d1_last_sl) <= atr * i_keyATR
+nearD1Res = not na(d1_last_sh) and math.abs(close - d1_last_sh) <= atr * i_keyATR
+round50   = math.round(close / 50) * 50
+nearRound = math.abs(close - round50) <= atr * 1.0
+
+nearBullKey = nearD1Sup or nearRound
+nearBearKey = nearD1Res or nearRound
+
+// ════════════════════════════════════════
+// 4. MARKET STRUCTURE — H1 CHoCH / BOS
+// ════════════════════════════════════════
+var float h1_last_sh = na
+var float h1_last_sl = na
+var float h1_prev_sh = na
+var float h1_prev_sl = na
+
+if not na(h1_sh)
+    h1_prev_sh := h1_last_sh
+    h1_last_sh := h1_sh
+if not na(h1_sl)
+    h1_prev_sl := h1_last_sl
+    h1_last_sl := h1_sl
+
+// BOS: тренд үргэлжилж байгааг баталгаажуулна
+h1_bos_bull = d1_bull and not na(h1_last_sh) and close > h1_last_sh
+h1_bos_bear = d1_bear and not na(h1_last_sl) and close < h1_last_sl
+
+// CHoCH: тренд эргэж байгааг анхааруулна
+// D1 BULL + H4 correction (H4 BEAR) → H1 swing high давсан = CHoCH
+h1_choch_bull = d1_bull and h4_bear and not na(h1_last_sh) and close > h1_last_sh
+h1_choch_bear = d1_bear and h4_bull and not na(h1_last_sl) and close < h1_last_sl
+
+var bool struct_bull = false
+var bool struct_bear = false
+
+if h1_bos_bull or h1_choch_bull
+    struct_bull := true
+    struct_bear := false
+if h1_bos_bear or h1_choch_bear
+    struct_bear := true
+    struct_bull := false
+
+structType = h1_choch_bull ? "CHoCH ▲" : h1_bos_bull ? "BOS ▲" : h1_choch_bear ? "CHoCH ▼" : h1_bos_bear ? "BOS ▼" : struct_bull ? "BOS ▲ ✓" : struct_bear ? "BOS ▼ ✓" : "Хүлээж байна"
+
+// ════════════════════════════════════════
+// 5. H1 SWEEP — liquidity grab
+// ════════════════════════════════════════
+h1_bullSweep = d1_bull and h4_bull and not na(h1_last_sl) and
+               low < h1_last_sl and close > h1_last_sl
+
+h1_bearSweep = d1_bear and h4_bear and not na(h1_last_sh) and
+               high > h1_last_sh and close < h1_last_sh
+
+var bool  sweep_bull   = false
+var bool  sweep_bear   = false
+var float sweepRefLow  = na
+var float sweepRefHigh = na
+var bool  buyFired     = false
+var bool  sellFired    = false
+
+if h1_bullSweep
+    sweep_bull   := true
+    sweep_bear   := false
+    buyFired     := false
+    sweepRefLow  := low
+if h1_bearSweep
+    sweep_bear   := true
+    sweep_bull   := false
+    sellFired    := false
+    sweepRefHigh := high
+
+if not na(h1_sh) and sweep_bull
+    sweep_bull  := false
+    sweepRefLow := na
+if not na(h1_sl) and sweep_bear
+    sweep_bear   := false
+    sweepRefHigh := na
+
+// ════════════════════════════════════════
+// H1 FVG — визуал лавлагаа
 // ════════════════════════════════════════
 h1_bullFVG_top = request.security(syminfo.tickerid, "60", low > high[2] ? low     : na)
 h1_bullFVG_bot = request.security(syminfo.tickerid, "60", low > high[2] ? high[2] : na)
@@ -91,87 +168,26 @@ if not na(h1_bearFVG_top)
     fvgBearBot := h1_bearFVG_bot
 
 // ════════════════════════════════════════
-// H1 SWEEP + FVG LOCK + SWEEP REF PRICE
+// 6. VOLUME
 // ════════════════════════════════════════
-var float h1_last_sh = na
-var float h1_last_sl = na
-
-if not na(h1_sh)
-    h1_last_sh := h1_sh
-if not na(h1_sl)
-    h1_last_sl := h1_sl
-
-var bool  h1_sweep_bull    = false
-var bool  h1_sweep_bear    = false
-var bool  buyFired         = false
-var bool  sellFired        = false
-var float lockedBullFVGTop = na
-var float lockedBullFVGBot = na
-var float lockedBearFVGTop = na
-var float lockedBearFVGBot = na
-var float sweepRefLow      = na   // BUY SL лавлагаа
-var float sweepRefHigh     = na   // SELL SL лавлагаа
-
-h1_bullSweep = d1_bias_bull and h4_bull and not na(h1_last_sl) and
-               low < h1_last_sl and close > h1_last_sl
-
-h1_bearSweep = d1_bias_bear and h4_bear and not na(h1_last_sh) and
-               high > h1_last_sh and close < h1_last_sh
-
-if h1_bullSweep
-    h1_sweep_bull    := true
-    h1_sweep_bear    := false
-    buyFired         := false
-    lockedBullFVGTop := fvgBullTop  // sweep мөчид FVG хөлдөөх
-    lockedBullFVGBot := fvgBullBot
-    sweepRefLow      := low         // SL = sweep low - buffer
-    lockedBearFVGTop := na
-    lockedBearFVGBot := na
-
-if h1_bearSweep
-    h1_sweep_bear    := true
-    h1_sweep_bull    := false
-    sellFired        := false
-    lockedBearFVGTop := fvgBearTop
-    lockedBearFVGBot := fvgBearBot
-    sweepRefHigh     := high
-    lockedBullFVGTop := na
-    lockedBullFVGBot := na
-
-// Эсрэг H1 pivot гарвал бүгдийг reset
-if not na(h1_sh) and h1_sweep_bull
-    h1_sweep_bull    := false
-    lockedBullFVGTop := na
-    lockedBullFVGBot := na
-    sweepRefLow      := na
-if not na(h1_sl) and h1_sweep_bear
-    h1_sweep_bear    := false
-    lockedBearFVGTop := na
-    lockedBearFVGBot := na
-    sweepRefHigh     := na
-
-// Locked FVG дотор байгаа эсэх
-inBullZone = h1_sweep_bull and not na(lockedBullFVGBot) and
-             close >= lockedBullFVGBot - dynBuf and close <= lockedBullFVGTop + dynBuf
-inBearZone = h1_sweep_bear and not na(lockedBearFVGBot) and
-             close <= lockedBearFVGTop + dynBuf and close >= lockedBearFVGBot - dynBuf
-
-distToBullZone = h1_sweep_bull and not na(lockedBullFVGTop) and close > lockedBullFVGTop ? close - lockedBullFVGTop : na
-distToBearZone = h1_sweep_bear and not na(lockedBearFVGBot) and close < lockedBearFVGBot ? lockedBearFVGBot - close : na
+volMA     = ta.sma(volume, i_volLen)
+volStrong = volume > volMA * 1.5
+volWeak   = volume < volMA * 0.7
+volOK     = not volWeak
+volText   = volStrong ? "🔥 Өндөр" : volWeak ? "😴 Доогуур" : "📊 Дундаж"
+volColor  = volStrong ? color.new(color.teal, 30) : volWeak ? color.new(color.gray, 50) : color.new(color.blue, 50)
 
 // ════════════════════════════════════════
-// M5 CANDLE PATTERNS
+// 7. PRICE ACTION — M5 candle
 // ════════════════════════════════════════
 candleSize = high - low + 0.0001
 
 bullEngulf = close > open and close[1] < open[1] and close > open[1] and open <= close[1]
 bearEngulf = close < open and close[1] > open[1] and close < open[1] and open >= close[1]
-
-bullPin = close > open and (open - low)  / candleSize > 0.55 and (high - close) / candleSize < 0.25
-bearPin = close < open and (high - open) / candleSize > 0.55 and (close - low)  / candleSize < 0.25
-
-bullClose = close > open and close > close[1] and (close - open) > atr * 0.3
-bearClose = close < open and close < close[1] and (open - close) > atr * 0.3
+bullPin    = close > open and (open - low)  / candleSize > 0.55 and (high - close) / candleSize < 0.25
+bearPin    = close < open and (high - open) / candleSize > 0.55 and (close - low)  / candleSize < 0.25
+bullClose  = close > open and close > close[1] and (close - open) > atr * 0.3
+bearClose  = close < open and close < close[1] and (open - close) > atr * 0.3
 
 bullCandle = bullEngulf or bullPin or bullClose
 bearCandle = bearEngulf or bearPin or bearClose
@@ -180,16 +196,7 @@ bullCandleType = bullEngulf ? "engulf" : bullPin ? "pin" : "close"
 bearCandleType = bearEngulf ? "engulf" : bearPin ? "pin" : "close"
 
 // ════════════════════════════════════════
-// VOLUME
-// ════════════════════════════════════════
-volMA     = ta.sma(volume, i_volLen)
-volStrong = volume > volMA * 1.5
-volWeak   = volume < volMA * 0.7
-volText   = volStrong ? "🔥 Өндөр" : volWeak ? "😴 Доогуур" : "📊 Дундаж"
-volColor  = volStrong ? color.new(color.teal, 30) : volWeak ? color.new(color.gray, 50) : color.new(color.blue, 50)
-
-// ════════════════════════════════════════
-// SL / TP — structure-д суурилсан (sweep low/high)
+// SL / TP — sweep structure-д суурилсан
 // ════════════════════════════════════════
 buySL  = not na(sweepRefLow)  ? sweepRefLow  - atr * i_slBuf : close - atr * 1.5
 sellSL = not na(sweepRefHigh) ? sweepRefHigh + atr * i_slBuf : close + atr * 1.5
@@ -206,129 +213,137 @@ sellTP3 = close - sellRiskPts * tp3RR
 
 // ════════════════════════════════════════
 // FINAL SIGNALS
-// D1 bias + H4 trend + H1 sweep + Locked FVG + M5 candle
+// D1 + H4 + Key Level + Structure/Sweep + Volume + Candle
 // ════════════════════════════════════════
-buyConf       = d1_bias_bull and h4_bull and h1_sweep_bull and inBullZone and  bullCandle and not buyFired
-buyRiskEntry  = d1_bias_bull and h4_bull and h1_sweep_bull and inBullZone and not bullCandle and not buyFired
-sellConf      = d1_bias_bear and h4_bear and h1_sweep_bear and inBearZone and  bearCandle and not sellFired
-sellRiskEntry = d1_bias_bear and h4_bear and h1_sweep_bear and inBearZone and not bearCandle and not sellFired
 
-if buyConf      or buyRiskEntry
+// Sweep signal: D1+H4 aligned + sweep + key level + volume + candle
+buyConf       = d1_bull and h4_bull and sweep_bull and nearBullKey and volOK and  bullCandle and not buyFired
+buyRiskEntry  = d1_bull and h4_bull and sweep_bull and nearBullKey and volOK and not bullCandle and not buyFired
+sellConf      = d1_bear and h4_bear and sweep_bear and nearBearKey and volOK and  bearCandle and not sellFired
+sellRiskEntry = d1_bear and h4_bear and sweep_bear and nearBearKey and volOK and not bearCandle and not sellFired
+
+// CHoCH signal: D1 trend + H4 correction дуусаж + key level + volume + candle
+buyChoCH  = d1_bull and h1_choch_bull and nearBullKey and volOK and bullCandle and not buyFired
+sellChoCH = d1_bear and h1_choch_bear and nearBearKey and volOK and bearCandle and not sellFired
+
+if buyConf  or buyRiskEntry or buyChoCH
     buyFired  := true
-if sellConf     or sellRiskEntry
+if sellConf or sellRiskEntry or sellChoCH
     sellFired := true
 
 // ════════════════════════════════════════
 // VISUALS
 // ════════════════════════════════════════
-trendColor = d1_bias_bull ? color.lime : color.red
-trendText  = d1_bias_bull ? "D1: BULL (EMA)" : "D1: BEAR (EMA)"
+trendColor = d1_bull ? color.lime : color.red
+trendText  = d1_bull ? "D1: BULL (EMA)" : "D1: BEAR (EMA)"
 
-buyConfColor  = (i_showVol and volStrong) ? color.new(color.teal, 0) : color.new(color.green, 0)
-sellConfColor = (i_showVol and volStrong) ? color.new(#c000ff, 0)    : color.new(color.red,   0)
+buyColor  = volStrong ? color.new(color.teal,  0) : color.new(color.green, 0)
+sellColor = volStrong ? color.new(#c000ff, 0)     : color.new(color.red,   0)
 
-plotshape(buyConf,       "BUY Confirm",  shape.labelup,      location.belowbar, buyConfColor,               text="BUY ✓",  textcolor=color.white, size=size.normal)
-plotshape(buyRiskEntry,  "BUY Risk",     shape.triangleup,   location.belowbar, color.new(color.lime, 20),  size=size.small)
-plotshape(sellConf,      "SELL Confirm", shape.labeldown,    location.abovebar, sellConfColor,              text="SELL ✓", textcolor=color.white, size=size.normal)
-plotshape(sellRiskEntry, "SELL Risk",    shape.triangledown, location.abovebar, color.new(color.orange, 20), size=size.small)
+plotshape(buyConf  or buyChoCH,  "BUY Confirm",  shape.labelup,      location.belowbar, buyColor,                   text="BUY ✓",  textcolor=color.white, size=size.normal)
+plotshape(buyRiskEntry,          "BUY Risk",      shape.triangleup,   location.belowbar, color.new(color.lime, 20),  size=size.small)
+plotshape(sellConf or sellChoCH, "SELL Confirm",  shape.labeldown,    location.abovebar, sellColor,                  text="SELL ✓", textcolor=color.white, size=size.normal)
+plotshape(sellRiskEntry,         "SELL Risk",      shape.triangledown, location.abovebar, color.new(color.orange, 20), size=size.small)
 
 var label trendLabel = na
 label.delete(trendLabel)
 trendLabel := label.new(bar_index, high * 1.001, trendText, color=trendColor, textcolor=color.white, size=size.small)
 
-// FVG: sweep идэвхтэй үед locked FVG, эс бол live FVG
-fvgTopPlotBull = h1_sweep_bull and not na(lockedBullFVGTop) ? lockedBullFVGTop : fvgBullTop
-fvgBotPlotBull = h1_sweep_bull and not na(lockedBullFVGBot) ? lockedBullFVGBot : fvgBullBot
-fvgTopPlotBear = h1_sweep_bear and not na(lockedBearFVGTop) ? lockedBearFVGTop : fvgBearTop
-fvgBotPlotBear = h1_sweep_bear and not na(lockedBearFVGBot) ? lockedBearFVGBot : fvgBearBot
+plot(i_showEMA    ? d1_ema     : na, "D1 EMA 50",     color.new(color.white,  30), 2)
+plot(i_showEMA    ? h4_ema     : na, "H4 EMA 50",     color.new(color.yellow, 40), 1)
+plot(i_showLevels ? d1_last_sh : na, "D1 Resistance", color.new(color.blue,   30), 2)
+plot(i_showLevels ? d1_last_sl : na, "D1 Support",    color.new(color.blue,   30), 2)
+plot(i_showStruct ? h4_last_sh : na, "H4 High",       color.new(color.orange, 40), 1)
+plot(i_showStruct ? h4_last_sl : na, "H4 Low",        color.new(color.orange, 40), 1)
+plot(i_showStruct ? h1_last_sh : na, "H1 High",       color.new(color.yellow, 50), 1, plot.style_circles)
+plot(i_showStruct ? h1_last_sl : na, "H1 Low",        color.new(color.yellow, 50), 1, plot.style_circles)
+plot(i_showFVG    ? fvgBullTop : na, "Bull FVG Top",  color.new(color.green,  30), 1)
+plot(i_showFVG    ? fvgBullBot : na, "Bull FVG Bot",  color.new(color.green,  60), 1, plot.style_linebr)
+plot(i_showFVG    ? fvgBearTop : na, "Bear FVG Top",  color.new(color.red,    60), 1, plot.style_linebr)
+plot(i_showFVG    ? fvgBearBot : na, "Bear FVG Bot",  color.new(color.red,    30), 1)
 
-plot(i_showEMA ? d1_ema : na, "D1 EMA 50", color.new(color.white,  30), 2)
-plot(i_showEMA ? h4_ema : na, "H4 EMA 50", color.new(color.yellow, 40), 1)
-plot(i_showD1  ? d1_last_sh : na, "D1 Resistance", color.new(color.blue,   40), 2)
-plot(i_showD1  ? d1_last_sl : na, "D1 Support",    color.new(color.blue,   40), 2)
-plot(i_showH4  ? h4_last_sh : na, "H4 Swing High", color.new(color.orange, 30), 1)
-plot(i_showH4  ? h4_last_sl : na, "H4 Swing Low",  color.new(color.orange, 30), 1)
-plot(i_showH1  ? h1_last_sh : na, "H1 Swing High", color.new(color.yellow, 40), 1, plot.style_circles)
-plot(i_showH1  ? h1_last_sl : na, "H1 Swing Low",  color.new(color.yellow, 40), 1, plot.style_circles)
-plot(i_showH1  ? fvgTopPlotBull : na, "H1 Bull FVG Top", color.new(color.green, 30), 1)
-plot(i_showH1  ? fvgBotPlotBull : na, "H1 Bull FVG Bot", color.new(color.green, 60), 1, plot.style_linebr)
-plot(i_showH1  ? fvgTopPlotBear : na, "H1 Bear FVG Top", color.new(color.red,   60), 1, plot.style_linebr)
-plot(i_showH1  ? fvgBotPlotBear : na, "H1 Bear FVG Bot", color.new(color.red,   30), 1)
+plot(sweep_bull and not na(sweepRefLow)  ? sweepRefLow  : na, "Sweep Low",  color.new(color.green, 40), 1, plot.style_stepline)
+plot(sweep_bear and not na(sweepRefHigh) ? sweepRefHigh : na, "Sweep High", color.new(color.red,   40), 1, plot.style_stepline)
 
-// Sweep reference — SL лавлагаа шугам
-plot(h1_sweep_bull and not na(sweepRefLow)  ? sweepRefLow  : na, "Sweep Ref Low",  color.new(color.green, 40), 1, plot.style_stepline)
-plot(h1_sweep_bear and not na(sweepRefHigh) ? sweepRefHigh : na, "Sweep Ref High", color.new(color.red,   40), 1, plot.style_stepline)
-
-bgcolor(h1_sweep_bull ? color.new(color.green, 90) : na, title="BUY горим дэвсгэр")
-bgcolor(h1_sweep_bear ? color.new(color.red,   90) : na, title="SELL горим дэвсгэр")
+bgcolor(sweep_bull ? color.new(color.green, 92) : na, title="BUY горим")
+bgcolor(sweep_bear ? color.new(color.red,   92) : na, title="SELL горим")
 
 // ════════════════════════════════════════
 // INFO TABLE
 // ════════════════════════════════════════
-var table infoBox = table.new(position.top_right, 2, 10,
+var table t = table.new(position.top_right, 2, 10,
      bgcolor=color.new(#0a0a0f, 20),
      border_color=color.new(color.gray, 60), border_width=1,
      frame_color=color.new(color.gray, 40), frame_width=1)
 
-table.cell(infoBox, 0, 0, "XAUUSD · SMC Signal", text_color=color.white, text_size=size.small, bgcolor=color.new(#1a1a2e, 10), width=18)
-table.cell(infoBox, 1, 0, trendText,              text_color=trendColor,  text_size=size.small, bgcolor=color.new(#1a1a2e, 10), width=12)
+table.cell(t, 0, 0, "XAUUSD · SMC Pro", text_color=color.white,  text_size=size.small, bgcolor=color.new(#1a1a2e, 10), width=18)
+table.cell(t, 1, 0, trendText,           text_color=trendColor,   text_size=size.small, bgcolor=color.new(#1a1a2e, 10), width=12)
 
-d1Txt   = d1_bias_bull ? "BULL ▲ (EMA)" : "BEAR ▼ (EMA)"
-d1Color = d1_bias_bull ? color.lime : color.red
-table.cell(infoBox, 0, 1, "D1 Trend", text_color=color.new(color.white,20), text_size=size.small, bgcolor=color.new(#0d1117,10))
-table.cell(infoBox, 1, 1, d1Txt,      text_color=d1Color,                   text_size=size.small, bgcolor=color.new(#0d1117,10))
+// D1 Bias
+d1Bg = d1_bull ? color.new(color.green,85) : color.new(color.red,85)
+table.cell(t, 0, 1, "D1 Bias",  text_color=color.new(color.white,20), text_size=size.small, bgcolor=d1Bg)
+table.cell(t, 1, 1, d1_bull ? "BULL ▲ (EMA)" : "BEAR ▼ (EMA)", text_color=d1_bull ? color.lime : color.red, text_size=size.small, bgcolor=d1Bg)
 
-h4Txt   = h4_bull ? "BULL ▲ (EMA)" : "BEAR ▼ (EMA)"
-h4Color = h4_bull ? color.lime : color.red
-h4Bg    = h4_bull ? color.new(color.green,85) : color.new(color.red,85)
-table.cell(infoBox, 0, 2, "H4 Trend", text_color=color.new(color.white,20), text_size=size.small, bgcolor=h4Bg)
-table.cell(infoBox, 1, 2, h4Txt,      text_color=h4Color,                   text_size=size.small, bgcolor=h4Bg)
+// H4 Confirmation
+h4Bg = h4_bull ? color.new(color.green,85) : color.new(color.red,85)
+table.cell(t, 0, 2, "H4 Trend", text_color=color.new(color.white,20), text_size=size.small, bgcolor=h4Bg)
+table.cell(t, 1, 2, h4_bull ? "BULL ▲ (EMA)" : "BEAR ▼ (EMA)", text_color=h4_bull ? color.lime : color.red, text_size=size.small, bgcolor=h4Bg)
 
-swTxt   = h1_sweep_bull ? "Bull sweep ✓" : h1_sweep_bear ? "Bear sweep ✓" : "Хүлээж байна"
-swColor = h1_sweep_bull ? color.lime : h1_sweep_bear ? color.red : color.new(color.gray,30)
-swBg    = h1_sweep_bull ? color.new(color.green,80) : h1_sweep_bear ? color.new(color.red,80) : color.new(#0d1117,10)
-table.cell(infoBox, 0, 3, "H1 Sweep", text_color=color.new(color.white,20), text_size=size.small, bgcolor=swBg)
-table.cell(infoBox, 1, 3, swTxt,      text_color=swColor,                   text_size=size.small, bgcolor=swBg)
+// Key Level
+keyTxt   = nearBullKey and d1_bull ? (nearD1Sup ? "D1 Support ✓" : "Round # ✓") : nearBearKey and d1_bear ? (nearD1Res ? "D1 Resist ✓" : "Round # ✓") : "Хол байна"
+keyColor = (nearBullKey and d1_bull) or (nearBearKey and d1_bear) ? color.lime : color.new(color.gray,30)
+keyBg    = (nearBullKey and d1_bull) or (nearBearKey and d1_bear) ? color.new(color.green,85) : color.new(#0d1117,10)
+table.cell(t, 0, 3, "Key Level", text_color=color.new(color.white,20), text_size=size.small, bgcolor=keyBg)
+table.cell(t, 1, 3, keyTxt,      text_color=keyColor,                  text_size=size.small, bgcolor=keyBg)
 
-fvgLocked = (h1_sweep_bull and not na(lockedBullFVGTop)) or (h1_sweep_bear and not na(lockedBearFVGTop))
-zoneTxt   = inBullZone ? "Bull FVG ✓ 🔒" : inBearZone ? "Bear FVG ✓ 🔒" : fvgLocked ? "FVG locked, гадна" : "FVG хүлээж байна"
-zoneColor = inBullZone ? color.lime : inBearZone ? color.red : color.new(color.gray,30)
-zoneBg    = inBullZone ? color.new(color.green,85) : inBearZone ? color.new(color.red,85) : color.new(#0d1117,10)
-distVal   = h1_sweep_bull and not inBullZone and not na(distToBullZone) ? " (" + str.tostring(math.round(distToBullZone,1)) + "pt)" : h1_sweep_bear and not inBearZone and not na(distToBearZone) ? " (" + str.tostring(math.round(distToBearZone,1)) + "pt)" : ""
-table.cell(infoBox, 0, 4, "H1 FVG",         text_color=color.new(color.white,20), text_size=size.small, bgcolor=zoneBg)
-table.cell(infoBox, 1, 4, zoneTxt + distVal, text_color=zoneColor,                text_size=size.small, bgcolor=zoneBg)
+// Market Structure
+strColor = struct_bull ? color.lime : struct_bear ? color.red : color.new(color.gray,30)
+strBg    = struct_bull ? color.new(color.green,85) : struct_bear ? color.new(color.red,85) : color.new(#0d1117,10)
+table.cell(t, 0, 4, "Structure", text_color=color.new(color.white,20), text_size=size.small, bgcolor=strBg)
+table.cell(t, 1, 4, structType,  text_color=strColor,                  text_size=size.small, bgcolor=strBg)
 
-candleTxt   = bullCandle ? "Bull candle ✓" : bearCandle ? "Bear candle ✓" : "Хүлээж байна"
+// Sweep
+swTxt   = sweep_bull ? "Bull sweep ✓" : sweep_bear ? "Bear sweep ✓" : "Хүлээж байна"
+swColor = sweep_bull ? color.lime : sweep_bear ? color.red : color.new(color.gray,30)
+swBg    = sweep_bull ? color.new(color.green,80) : sweep_bear ? color.new(color.red,80) : color.new(#0d1117,10)
+table.cell(t, 0, 5, "H1 Sweep", text_color=color.new(color.white,20), text_size=size.small, bgcolor=swBg)
+table.cell(t, 1, 5, swTxt,      text_color=swColor,                   text_size=size.small, bgcolor=swBg)
+
+// Volume
+volBg = volStrong ? color.new(color.teal,80) : volWeak ? color.new(color.gray,80) : color.new(#0d1117,10)
+table.cell(t, 0, 6, "Volume", text_color=color.new(color.white,20), text_size=size.small, bgcolor=volBg)
+table.cell(t, 1, 6, volText + " · " + str.tostring(math.round(volume / volMA * 100)) + "%", text_color=volColor, text_size=size.small, bgcolor=volBg)
+
+// M5 Candle
+candleTxt   = bullCandle ? "Bull ✓ (" + bullCandleType + ")" : bearCandle ? "Bear ✓ (" + bearCandleType + ")" : "Хүлээж байна"
 candleColor = bullCandle ? color.lime : bearCandle ? color.red : color.new(color.gray,30)
-table.cell(infoBox, 0, 5, "M5 Candle", text_color=color.new(color.white,20), text_size=size.small, bgcolor=color.new(#0d1117,10))
-table.cell(infoBox, 1, 5, candleTxt,   text_color=candleColor,               text_size=size.small, bgcolor=color.new(#0d1117,10))
+table.cell(t, 0, 7, "M5 Candle", text_color=color.new(color.white,20), text_size=size.small, bgcolor=color.new(#0d1117,10))
+table.cell(t, 1, 7, candleTxt,   text_color=candleColor,               text_size=size.small, bgcolor=color.new(#0d1117,10))
 
-sigTxt   = buyConf ? "▲ BUY CONF" : sellConf ? "▼ SELL CONF" : buyRiskEntry ? "△ BUY RISK" : sellRiskEntry ? "▽ SELL RISK" : "— Сигнал үгүй"
-sigColor = buyConf ? color.lime : sellConf ? color.red : buyRiskEntry ? color.new(color.lime,40) : sellRiskEntry ? color.new(color.red,40) : color.new(color.gray,30)
-sigBg    = buyConf ? color.new(color.green,70) : sellConf ? color.new(color.red,70) : color.new(#0d1117,10)
-table.cell(infoBox, 0, 6, "Сигнал", text_color=color.new(color.white,20), text_size=size.small, bgcolor=sigBg)
-table.cell(infoBox, 1, 6, sigTxt,   text_color=sigColor,                  text_size=size.small, bgcolor=sigBg)
+// Signal
+sigTxt   = (buyConf or buyChoCH) ? "▲ BUY CONF" : (sellConf or sellChoCH) ? "▼ SELL CONF" : buyRiskEntry ? "△ BUY RISK" : sellRiskEntry ? "▽ SELL RISK" : "— Сигнал үгүй"
+sigColor = (buyConf or buyChoCH) ? color.lime : (sellConf or sellChoCH) ? color.red : buyRiskEntry ? color.new(color.lime,40) : sellRiskEntry ? color.new(color.red,40) : color.new(color.gray,30)
+sigBg    = (buyConf or buyChoCH) ? color.new(color.green,70) : (sellConf or sellChoCH) ? color.new(color.red,70) : color.new(#0d1117,10)
+table.cell(t, 0, 8, "Сигнал", text_color=color.new(color.white,20), text_size=size.small, bgcolor=sigBg)
+table.cell(t, 1, 8, sigTxt,   text_color=sigColor,                  text_size=size.small, bgcolor=sigBg)
 
-slDisplay = h1_sweep_bull and not na(buySL)  ? "SL: " + str.tostring(math.round(buySL,  2)) : h1_sweep_bear and not na(sellSL) ? "SL: " + str.tostring(math.round(sellSL, 2)) : "—"
-table.cell(infoBox, 0, 7, "Structure SL", text_color=color.new(color.white,20),  text_size=size.small, bgcolor=color.new(#0d1117,10))
-table.cell(infoBox, 1, 7, slDisplay,      text_color=color.new(color.orange,10), text_size=size.small, bgcolor=color.new(#0d1117,10))
-
-table.cell(infoBox, 0, 8, "", bgcolor=color.new(color.gray,80), text_color=color.gray, text_size=size.tiny)
-table.cell(infoBox, 1, 8, "", bgcolor=color.new(color.gray,80), text_color=color.gray, text_size=size.tiny)
-
-table.cell(infoBox, 0, 9, "Volume", text_color=color.new(color.white,20), text_size=size.small, bgcolor=color.new(#0d1117,10))
-table.cell(infoBox, 1, 9, volText + " · " + str.tostring(math.round(volume / volMA * 100)) + "%", text_color=volColor, text_size=size.small, bgcolor=color.new(#0d1117,10))
+// SL
+slTxt = sweep_bull and not na(buySL) ? "SL: " + str.tostring(math.round(buySL, 2)) : sweep_bear and not na(sellSL) ? "SL: " + str.tostring(math.round(sellSL, 2)) : "—"
+table.cell(t, 0, 9, "Structure SL", text_color=color.new(color.white,20),   text_size=size.small, bgcolor=color.new(#0d1117,10))
+table.cell(t, 1, 9, slTxt,          text_color=color.new(color.orange, 10), text_size=size.small, bgcolor=color.new(#0d1117,10))
 
 // ════════════════════════════════════════
 // ALERTS
 // ════════════════════════════════════════
 timeStr = str.format_time(time, "MM/dd HH:mm", "UTC+0")
 
-if buyConf
-    alert('{"signal":"BUY","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","entry":"confirmation_candle","zone":"H1FVG","candle":"' + bullCandleType + '","price":"' + str.tostring(close,"#.##") + '","sl":"' + str.tostring(buySL,"#.##") + '","tp1":"' + str.tostring(buyTP1,"#.##") + '","tp2":"' + str.tostring(buyTP2,"#.##") + '","tp3":"' + str.tostring(buyTP3,"#.##") + '","time":"' + timeStr + '","volume":"' + volText + '"}', alert.freq_once_per_bar_close)
+if buyConf or buyChoCH
+    _type = buyChoCH ? "choch" : "confirmation"
+    alert('{"signal":"BUY","type":"' + _type + '","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","entry":"confirmation_candle","zone":"H1FVG","candle":"' + bullCandleType + '","price":"' + str.tostring(close,"#.##") + '","sl":"' + str.tostring(buySL,"#.##") + '","tp1":"' + str.tostring(buyTP1,"#.##") + '","tp2":"' + str.tostring(buyTP2,"#.##") + '","tp3":"' + str.tostring(buyTP3,"#.##") + '","time":"' + timeStr + '","volume":"' + volText + '"}', alert.freq_once_per_bar_close)
 if buyRiskEntry
     alert('{"signal":"BUY","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BULL","entry":"risk","zone":"H1FVG","candle":"none","price":"' + str.tostring(close,"#.##") + '","sl":"' + str.tostring(buySL,"#.##") + '","tp1":"' + str.tostring(buyTP1,"#.##") + '","tp2":"' + str.tostring(buyTP2,"#.##") + '","tp3":"' + str.tostring(buyTP3,"#.##") + '","time":"' + timeStr + '","volume":"' + volText + '"}', alert.freq_once_per_bar_close)
-if sellConf
-    alert('{"signal":"SELL","type":"confirmation","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","entry":"confirmation_candle","zone":"H1FVG","candle":"' + bearCandleType + '","price":"' + str.tostring(close,"#.##") + '","sl":"' + str.tostring(sellSL,"#.##") + '","tp1":"' + str.tostring(sellTP1,"#.##") + '","tp2":"' + str.tostring(sellTP2,"#.##") + '","tp3":"' + str.tostring(sellTP3,"#.##") + '","time":"' + timeStr + '","volume":"' + volText + '"}', alert.freq_once_per_bar_close)
+if sellConf or sellChoCH
+    _type = sellChoCH ? "choch" : "confirmation"
+    alert('{"signal":"SELL","type":"' + _type + '","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","entry":"confirmation_candle","zone":"H1FVG","candle":"' + bearCandleType + '","price":"' + str.tostring(close,"#.##") + '","sl":"' + str.tostring(sellSL,"#.##") + '","tp1":"' + str.tostring(sellTP1,"#.##") + '","tp2":"' + str.tostring(sellTP2,"#.##") + '","tp3":"' + str.tostring(sellTP3,"#.##") + '","time":"' + timeStr + '","volume":"' + volText + '"}', alert.freq_once_per_bar_close)
 if sellRiskEntry
     alert('{"signal":"SELL","type":"risk","pair":"XAUUSD","tf":"M5","d1_trend":"BEAR","entry":"risk","zone":"H1FVG","candle":"none","price":"' + str.tostring(close,"#.##") + '","sl":"' + str.tostring(sellSL,"#.##") + '","tp1":"' + str.tostring(sellTP1,"#.##") + '","tp2":"' + str.tostring(sellTP2,"#.##") + '","tp3":"' + str.tostring(sellTP3,"#.##") + '","time":"' + timeStr + '","volume":"' + volText + '"}', alert.freq_once_per_bar_close)
