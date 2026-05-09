@@ -189,11 +189,13 @@ bearPin    = close < open and (high - open) / candleSize > 0.55 and (close - low
 bullClose  = close > open and close > close[1] and (close - open) > atr * 0.3
 bearClose  = close < open and close < close[1] and (open - close) > atr * 0.3
 
-bullCandle = bullEngulf or bullPin or bullClose
-bearCandle = bearEngulf or bearPin or bearClose
+doji = math.abs(close - open) / candleSize < 0.1 and (high - low) > atr * 0.3
 
-bullCandleType = bullEngulf ? "engulf" : bullPin ? "pin" : "close"
-bearCandleType = bearEngulf ? "engulf" : bearPin ? "pin" : "close"
+bullCandle = bullEngulf or bullPin or bullClose or doji
+bearCandle = bearEngulf or bearPin or bearClose or doji
+
+bullCandleType = bullEngulf ? "engulf" : bullPin ? "pin" : doji ? "doji" : "close"
+bearCandleType = bearEngulf ? "engulf" : bearPin ? "pin" : doji ? "doji" : "close"
 
 // ════════════════════════════════════════
 // SL / TP — sweep structure-д суурилсан
